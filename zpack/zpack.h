@@ -33,10 +33,19 @@ namespace zp
 	#define Strcpy strcpy_s
 #endif
 
-typedef unsigned char u8;
-typedef unsigned short u16;
-typedef unsigned long u32;
-typedef unsigned long long u64;
+#ifndef __LP64__
+	typedef unsigned char u8;					//1个字节
+	typedef unsigned short u16;					//2个字节
+	typedef unsigned long u32;					//4个字节
+	typedef unsigned long long u64;				//8个字节
+#else
+	//64位变化的是long和指针大小
+	typedef unsigned char u8;					//1个字节
+	typedef unsigned short u16;					//2个字节
+	typedef unsigned int u32;					//4个字节
+	typedef unsigned long long u64;				//8个字节（64位系统大小不变，32位系统也是8字节）
+#endif
+
 
 const u32 MAX_FILENAME_LEN = 1024;
 
