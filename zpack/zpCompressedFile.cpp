@@ -37,20 +37,27 @@ CompressedFile::CompressedFile(const Package* package, u64 offset, u32 compresse
 		return;
 	}
 
+	//获取文件大小
 	u32 availableSize = m_package->getFileAvailableSize(nameHash);
 	if (availableSize < m_chunkCount * sizeof(u32))
 	{
-		m_flag |= FILE_DELETE;
+		m_flag |= FILE_DELETE;	//文件异常删除
 		return;
 	}
 	//array of pointer to chunk data buffer
+	//字节流数据，存储
 	m_chunkData = new u8*[m_chunkCount];
 	memset(m_chunkData, 0, m_chunkCount * sizeof(u8*));
 	
 	//raw data position of each chunk
+	//每个块的存储的位置
 	m_chunkPos = new u32[m_chunkCount];
 	seekInPackage(0);
+
+	//获取每一块存储的位置
 	fread((char*)m_chunkPos, m_chunkCount * sizeof(u32), 1, m_package->m_stream);
+
+	//检查是否正确
 	if (!checkChunkPos())
 	{
 		//let package delete me
@@ -58,6 +65,7 @@ CompressedFile::CompressedFile(const Package* package, u64 offset, u32 compresse
 	}
 }
 
+//析构
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 CompressedFile::~CompressedFile()
 {
@@ -89,12 +97,14 @@ CompressedFile::~CompressedFile()
 	}
 }
 
+//获取文件原始的大小
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 u32 CompressedFile::size() const
 {
 	return m_originSize;
 }
 
+//暂时不清楚拿来干什么，没有实现任何功能
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 u32 CompressedFile::availableSize() const
 {
@@ -125,18 +135,20 @@ u32 CompressedFile::availableSize() const
 	return available;
 }
 
+//flag
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 u32 CompressedFile::flag() const
 {
 	return m_flag;
 }
 
+//设置读取文件位置
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 void CompressedFile::seek(u32 pos)
 {
 	if (pos > m_originSize)
 	{
-		m_readPos = m_originSize;
+		m_readPos = m_originSize;		
 	}
 	else
 	{
@@ -144,12 +156,14 @@ void CompressedFile::seek(u32 pos)
 	}
 }
 
+//返回当前文件读取位置
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 u32 CompressedFile::tell() const
 {
 	return m_readPos;
 }
 
+//读取size大小的位置
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 u32 CompressedFile::read(u8* buffer, u32 size)
 {
@@ -207,6 +221,7 @@ bool CompressedFile::checkChunkPos() const
 {
 	assert(m_chunkCount > 1);
 	
+	//开头4个字节存储块的数量，后面存储压缩块大小+前面4个字节的值，少了最后一个块的大小
 	if (m_chunkPos[0] != sizeof(m_chunkPos[0]) * m_chunkCount)
 	{
 		return false;
@@ -225,6 +240,7 @@ bool CompressedFile::checkChunkPos() const
 	return true;
 }
 
+//单块读取大小，当有内容是读取，没有时，则是先读取，然后写入
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 u32 CompressedFile::oneChunkRead(u8* buffer, u32 size)
 {
@@ -238,13 +254,17 @@ u32 CompressedFile::oneChunkRead(u8* buffer, u32 size)
 		return size;
 	}
 
+	//第一次读取
+
+	//设置包的读取指针
 	seekInPackage(0);
 
 	u8* dstBuffer = NULL;
 	if (m_readPos == 0 && size == m_originSize)
 	{
+		//读取整个文件时，则不需要读入m_fileData
 		//want entire file, no need to cache, just fill user buffer
-		dstBuffer = buffer;
+		dstBuffer = buffer;		//读取整个文件时，直接复制，不要缓存
 	}
 	else
 	{
@@ -255,6 +275,7 @@ u32 CompressedFile::oneChunkRead(u8* buffer, u32 size)
 	u8* compressed = new u8[m_compressedSize];
 	fread((char*)compressed, m_compressedSize, 1, m_package->m_stream);
 
+	//解压缩
 	u32 dstSize = m_originSize;	//don't want m_originSize to be changed
 	if (uncompress(dstBuffer, &dstSize, compressed, m_compressedSize) != Z_OK)
 	{
@@ -268,6 +289,7 @@ u32 CompressedFile::oneChunkRead(u8* buffer, u32 size)
 	return size;
 }
 
+//多块读取
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 bool CompressedFile::readChunk(u32 chunkIndex, u32 offset, u32 readSize, u8* buffer)
 {

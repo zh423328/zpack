@@ -121,7 +121,7 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalLibraryDirectories>../zpack/$(Configuration)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>../zpack/$(Configuration);../bin</AdditionalLibraryDirectories>
       <AdditionalDependencies>zpack.lib;pthreadVCE2.lib</AdditionalDependencies>
       <IgnoreSpecificDefaultLibraries>
       </IgnoreSpecificDefaultLibraries>

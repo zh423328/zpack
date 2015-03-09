@@ -44,6 +44,8 @@ Package::Package(const Char* filename, bool readonly, bool readFilename)
 	{
 		return;
 	}
+
+	//读取文件
 	if (readonly)
 	{
 		m_stream = Fopen(filename, _T("rb"));
@@ -52,10 +54,13 @@ Package::Package(const Char* filename, bool readonly, bool readFilename)
 	{
 		m_stream = Fopen(filename, _T("r+b"));
 	}
+
 	if (m_stream == NULL)
 	{
 		return;
 	}
+
+	//读取文件头和文件实体
 	if (!readHeader() || !readFileEntries())
 	{
 		goto Error;
@@ -64,6 +69,8 @@ Package::Package(const Char* filename, bool readonly, bool readFilename)
 	{
 		goto Error;
 	}
+
+	//建立hashtable
 	if (!buildHashTable())
 	{
 		goto Error;
@@ -97,24 +104,28 @@ Package::~Package()
 	pthread_mutex_destroy(&mutex_);
 }
 
+//pack会否有效
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 bool Package::valid() const
 {
 	return (m_stream != NULL);
 }
 
+//是否只读
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 bool Package::readonly() const
 {
 	return m_readonly;
 }
 
+//包名
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 const Char* Package::packageFilename() const
 {
 	return m_packageFilename.c_str();
 }
 
+//是否有某个名字，通过hash计算
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 bool Package::hasFile(const Char* filename) const
 {
@@ -123,6 +134,7 @@ bool Package::hasFile(const Char* filename) const
 	return (getFileIndex(filename) >= 0);
 }
 
+//打开其中一个文件。
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 IReadFile* Package::openFile(const Char* filename)
 {
@@ -136,8 +148,11 @@ IReadFile* Package::openFile(const Char* filename)
 	FileEntry& entry = getFileEntry(fileIndex);
 	if ((entry.flag & FILE_COMPRESS) == 0)
 	{
+		//未压缩
 		return new File(this, entry.byteOffset, entry.packSize, entry.flag, entry.nameHash);
 	}
+
+	//压缩
 	u32 chunkSize = entry.chunkSize == 0 ? m_header.chunkSize : entry.chunkSize;
 	CompressedFile* file = new CompressedFile(this, entry.byteOffset, entry.packSize, entry.originSize,
 												chunkSize, entry.flag, entry.nameHash);
@@ -149,6 +164,7 @@ IReadFile* Package::openFile(const Char* filename)
 	return file;
 }
 
+//关闭该文件
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 void Package::closeFile(IReadFile* file)
 {
@@ -164,6 +180,7 @@ void Package::closeFile(IReadFile* file)
 	}
 }
 
+//关闭文件
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 void Package::closeFile(IWriteFile* file)
 {
@@ -172,6 +189,7 @@ void Package::closeFile(IWriteFile* file)
 	delete static_cast<WriteFile*>(file);
 }
 
+//获取文件信息
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 bool Package::getFileInfo(u32 index, Char* filenameBuffer, u32 filenameBufferSize, u32* fileSize,
 							u32* packSize, u32* flag, u32* availableSize, u64* contentHash) const
@@ -246,6 +264,7 @@ bool Package::getFileInfo(const Char* filename, u32* fileSize, u32* packSize, u3
 	return true;
 }
 
+//添加一个文件到包中
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 bool Package::addFile(const Char* filename, const Char* externalFilename, u32 fileSize, u32 flag,
 						u32* outPackSize, u32* outFlag, u32 chunkSize)
@@ -260,6 +279,8 @@ bool Package::addFile(const Char* filename, const Char* externalFilename, u32 fi
 	{
 		chunkSize = m_header.chunkSize;
 	}
+
+	//添加文件
 	FILE* file = Fopen(externalFilename, _T("rb"));
 	if (file == NULL)
 	{
@@ -272,8 +293,10 @@ bool Package::addFile(const Char* filename, const Char* externalFilename, u32 fi
 	if (fileIndex >= 0)
 	{
 		//file exist
+		//已经存在一个则，置为可删除
 		getFileEntry(fileIndex).flag |= FILE_DELETE;
 	}
+	//初始化文件实体
 	FileEntry entry;
 	entry.nameHash = stringHash(filename, HASH_SEED);
 	entry.packSize = fileSize;
@@ -285,6 +308,7 @@ bool Package::addFile(const Char* filename, const Char* externalFilename, u32 fi
 	entry.reserved = 0;
 	//memset(entry.reserved, 0, sizeof(entry.reserved));
 
+	//插入的位置
 	u32 insertedIndex = insertFileEntry(entry, filename);
 
 	if (!insertFileHash(entry.nameHash, insertedIndex))
@@ -374,6 +398,7 @@ IWriteFile* Package::createFile(const Char* filename, u32 fileSize, u32 packSize
 		return NULL;
 	}
 
+	//写入zpk
 	return new WriteFile(this, entry.byteOffset, entry.packSize, entry.flag, entry.nameHash);
 }
 
@@ -594,12 +619,18 @@ bool Package::readHeader()
 {
 	fseek(m_stream, 0, SEEK_END);
 	u64 packageSize = ftell(m_stream);
+
+	//不包含包头
 	if (packageSize < sizeof(PackageHeader))
 	{
 		return false;
 	}
+
+	//读取包头验证
 	fseek(m_stream, 0, SEEK_SET);
 	fread(&m_header, sizeof(PackageHeader), 1, m_stream);
+
+	//这里面没有验证版本，说明版本不同也可以读取文件
 	if (m_header.sign != PACKAGE_FILE_SIGN
 		|| m_header.headerSize != sizeof(PackageHeader)
 		|| m_header.fileEntryOffset < m_header.headerSize
@@ -622,6 +653,7 @@ bool Package::readHeader()
 	{
 		return false;
 	}
+	//末尾
 	m_packageEnd = m_header.filenameOffset + m_header.allFilenameSize;
 	return true;
 }
@@ -637,7 +669,7 @@ bool Package::readFileEntries()
 	fseek(m_stream, m_header.fileEntryOffset, SEEK_SET);
 	if (m_header.allFileEntrySize == m_header.fileCount * m_header.fileEntrySize)
 	{
-		//not compressed
+		//not compressed，
 		fread(&m_fileEntries[0], m_header.allFileEntrySize, 1, m_stream);
 	}
 	else
@@ -645,6 +677,8 @@ bool Package::readFileEntries()
 		vector<u8> srcBuffer(m_header.allFileEntrySize);
 		fread(&srcBuffer[0], m_header.allFileEntrySize, 1, m_stream);
 		u32 dstBufferSize = m_header.fileCount * m_header.fileEntrySize;
+		
+		//解压
 		int ret = uncompress(&m_fileEntries[0], &dstBufferSize, &srcBuffer[0], m_header.allFileEntrySize);
 		if (ret != Z_OK || dstBufferSize != m_header.fileCount * m_header.fileEntrySize)
 		{
@@ -654,6 +688,7 @@ bool Package::readFileEntries()
 	return true;
 }
 
+//读取文件名
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 bool Package::readFilenames()
 {
@@ -694,7 +729,7 @@ bool Package::readFilenames()
 	for (u32 i = 0; i < fileCount; ++i)
 	{
 		Char out[MAX_FILENAME_LEN];
-		iss.getline(out, MAX_FILENAME_LEN);
+		iss.getline(out, MAX_FILENAME_LEN);		//每个文件名后面有个回车，去除回车
 		m_filenames[i] = out;
 	}
 	return true;
@@ -760,7 +795,7 @@ void Package::writeTables(bool avoidOverwrite)
 	for (u32 i = 0; i < m_filenames.size(); ++i)
 	{
 		srcFilename += m_filenames[i];
-		srcFilename += _T("\n");
+		srcFilename += _T("\n"); //加入回车
 	}
 	u32 srcFilenameSize = srcFilename.length() * sizeof(Char);
 	u32 dstFilenameSize = srcFilenameSize;
@@ -820,6 +855,7 @@ void Package::writeTables(bool avoidOverwrite)
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
+//重写建立实体，全部清空重写建立实体
 bool Package::buildHashTable()
 {
 	u32 requireSize = getFileCount() * HASH_TABLE_SCALE;
@@ -838,7 +874,7 @@ bool Package::buildHashTable()
 
 	bool wrong = false;
 	m_hashTable.clear();
-	m_hashTable.resize(tableSize, -1);
+	m_hashTable.resize(tableSize, -1);		//-1赋值
 	u32 fileCount = getFileCount();
 	for (u32 i = 0; i < fileCount; ++i)
 	{
@@ -898,6 +934,7 @@ int Package::getFileIndex(u64 nameHash) const
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 u32 Package::insertFileEntry(FileEntry& entry, const Char* filename)
 {
+	//删除文件
 	u32 maxIndex = getFileCount();
 	u64 lastEnd = m_header.headerSize;
 
@@ -910,18 +947,25 @@ u32 Package::insertFileEntry(FileEntry& entry, const Char* filename)
 			&& (lastEnd + entry.packSize <= m_header.fileEntryOffset
 				|| lastEnd >= m_header.filenameOffset + m_header.allFilenameSize))
 		{
+			//插入到合适的位置，其他的后移
 			entry.byteOffset = lastEnd;
+
+			//清除该位置
 			m_fileEntries.insert(m_fileEntries.begin() + fileIndex * m_header.fileEntrySize, m_header.fileEntrySize, 0);
 			
 			// fix: modify for fix CRASH : if m_fileEntries realloc then thisEntry will be freeed
 			// thisEntry = entry;
+			//赋值进去
 			getFileEntry(fileIndex) = entry; 
 			// ###############################
-
+			
+			//覆盖
 			m_filenames.insert(m_filenames.begin() + fileIndex, filename);
 			assert(m_filenames.size() == getFileCount());
 			//user may call addFile or removeFile before calling flush, so hash table need to be fixed
+			//重写设表值
 			fixHashTable(fileIndex);
+
 			return fileIndex;
 		}
 		lastEnd = thisEntry.byteOffset + thisEntry.packSize;
@@ -1017,6 +1061,7 @@ void Package::fixHashTable(u32 index)
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 void Package::writeRawFile(FileEntry& entry, FILE* file)
 {
+	//分块写入一个连续空间
 	fseek(m_stream, entry.byteOffset, SEEK_SET);
 
 	u32 chunkCount = (entry.originSize + m_header.chunkSize - 1) / m_header.chunkSize;

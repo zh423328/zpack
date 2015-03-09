@@ -9,6 +9,7 @@ namespace zp
 {
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
+//打开一个开放包
 IPackage* open(const Char* filename, u32 flag)
 {
 	Package* package = new Package(filename, 
@@ -44,8 +45,8 @@ IPackage* create(const Char* filename, u32 chunkSize, u32 fileUserDataSize)
 	header.version = CURRENT_VERSION;
 	header.headerSize = sizeof(PackageHeader);
 	header.fileCount = 0;
-	header.fileEntryOffset = sizeof(PackageHeader);
-	header.filenameOffset = sizeof(PackageHeader);
+	header.fileEntryOffset = sizeof(PackageHeader);		//默认=包头
+	header.filenameOffset = sizeof(PackageHeader);		//默认=包头
 	header.allFileEntrySize = 0;
 	header.allFilenameSize = 0;
 	header.originFilenamesSize = 0;
@@ -61,7 +62,7 @@ IPackage* create(const Char* filename, u32 chunkSize, u32 fileUserDataSize)
 	stream.write((char*)&header, sizeof(header));
 	stream.close();
 
-	return open(filename, 0);
+	return open(filename, 0);		//读取，假设我只要求可读
 }
 
 }

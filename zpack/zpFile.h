@@ -8,6 +8,7 @@ namespace zp
 
 class Package;
 
+//文件未经过压缩读取
 class File : public IReadFile
 {
 public:
@@ -30,12 +31,12 @@ private:
 	void seekInPackage();
 
 private:
-	u64				m_offset;
-	u64				m_nameHash;
-	const Package*	m_package;
-	u32				m_flag;
-	u32				m_size;
-	u32				m_readPos;
+	u64				m_offset;		//偏移量
+	u64				m_nameHash;		//hash
+	const Package*	m_package;		//zpk包指针
+	u32				m_flag;			//flag
+	u32				m_size;			//文件大小
+	u32				m_readPos;		//读取位置
 };
 
 }
