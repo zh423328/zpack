@@ -45,7 +45,7 @@ bool ZpExplorer::open(const zp::String& path, bool readonly)
 {
 	//BEGIN_PERF("open")
 	clear();
-	m_pack = zp::open(path.c_str(), readonly ? zp::OPEN_READONLY : 0);
+ 	m_pack = zp::open(path.c_str(), readonly ? zp::OPEN_READONLY : 0);
 	if (m_pack == NULL)
 	{
 		return false;

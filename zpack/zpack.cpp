@@ -30,6 +30,7 @@ void close(IPackage* package)
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
+//创建一个包
 IPackage* create(const Char* filename, u32 chunkSize, u32 fileUserDataSize)
 {
 	fstream stream;
